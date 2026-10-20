@@ -1,501 +1,109 @@
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    grid: $('grid'), stats: $('stats'), categories: $('categories'), search: $('search-input'),
+    sort: $('sort-select'), resultCount: $('result-count'), empty: $('empty-state'),
+    modal: $('modal'), frame: $('modal-frame'), modalTitle: $('modal-title'),
+    modalCategory: $('modal-category'), modalDescription: $('modal-description'),
+    modalOpen: $('modal-open'), theme: $('theme-toggle')
+  };
+  const STORE = { favorites: 'pixelArcade.favorites.v1', recent: 'pixelArcade.recent.v1', theme: 'pixelArcade.theme.v1' };
+  const emoji = { puzzle:'🧩', arcade:'🕹️', shooter:'🎯', racing:'🏎️', sports:'⚽', platformer:'🏃', casual:'🎈', board:'♟️', 'word-quiz':'📝', '3d':'🌐' };
+  const state = { games: [], categories: [], query: '', category: 'all', view: 'all', sort: 'default', current: null, favorites: readStore(STORE.favorites, []), recent: readStore(STORE.recent, []), shuffled: [] };
+  const safe = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function readStore(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return Array.isArray(fallback) ? (Array.isArray(v) ? v : fallback) : (v ?? fallback); } catch { return fallback; } }
+  function writeStore(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 
-
-const GH_REPO = "sausi-7/games";
-const DEFAULT_LOCALE = "en";
-const LOCALE_STORAGE_KEY = "language";
-const I18N = {
-  en: {
-    "brand.name": "Games Hub",
-    "hero.titleLine1": "140+ playable games.",
-    "hero.titleLine2": "One repo. Zero installs.",
-    "hero.subtitle": "A growing collection of browser-built HTML5 games — built with Phaser, Three.js, and vanilla JS. Click any card to play instantly.",
-    "cta.playRandom": "Play random",
-    "cta.browseAll": "Browse all",
-    "search.placeholder": "Search games — name, tag, category…",
-    "empty.noMatches": "No games match this search.",
-    "empty.clearFilters": "Clear filters",
-    "footer.builtBy": "Built by",
-    "footer.source": "Source",
-    "footer.contribute": "Contribute",
-    "footer.licensed": "MIT licensed",
-    "footer.language": "Language:",
-    "footer.press": "Press",
-    "footer.toSearch": "to search",
-    "footer.toClose": "to close",
-    "footer.forRandom": "for random",
-    "language.english": "English",
-    "language.hindi": "Hindi",
-    "modal.defaultTitle": "—",
-    "aria.toggleTheme": "Toggle theme",
-    "aria.viewSourceGithub": "View source on GitHub",
-    "aria.filterGames": "Filter games",
-    "aria.categories": "Categories",
-    "aria.toggleFullscreen": "Toggle fullscreen",
-    "aria.restartGame": "Restart game",
-    "aria.openInNewTab": "Open in new tab",
-    "aria.close": "Close",
-    "title.fullscreen": "Fullscreen",
-    "title.restart": "Restart",
-    "title.openInNewTab": "Open in new tab",
-    "title.close": "Close",
-    "title.game": "Game",
-    "errors.registryLoad": "Couldn't load <code>games/registry.json</code>. Are you serving over HTTP? Try <code>python -m http.server</code>.",
-    "stats.games": "games",
-    "filters.all": "All",
-    "card.tech.phaser": "Phaser",
-    "card.tech.three": "Three.js",
-    "card.tech.html": "HTML5",
-    "card.aria.play": "Play {name}",
-  },
-  hi: {
-    "brand.name": "गेम्स हब",
-    "hero.titleLine1": "140+ गेम्स।",
-    "hero.titleLine2": "एक रिपो। बिना किसी इंस्टॉलेशन के।",
-    "hero.subtitle": "ब्राउज़र-आधारित HTML5 गेम्स का बढ़ता कलेक्शन — Phaser, Three.js और vanilla JS से बना। किसी भी कार्ड पर क्लिक करें और तुरंत खेलें।",
-    "cta.playRandom": "रैंडम खेलें",
-    "cta.browseAll": "सभी देखें",
-    "search.placeholder": "गेम खोजें — नाम, टैग, श्रेणी…",
-    "empty.noMatches": "इस खोज से कोई गेम नहीं मिला।",
-    "empty.clearFilters": "फिल्टर हटाएं",
-    "footer.builtBy": "निर्माता",
-    "footer.source": "सोर्स",
-    "footer.contribute": "योगदान दें",
-    "footer.licensed": "MIT लाइसेंस",
-    "footer.language": "भाषा:",
-    "footer.press": "दबाएं",
-    "footer.toSearch": "खोजने के लिए",
-    "footer.toClose": "बंद करने के लिए",
-    "footer.forRandom": "रैंडम के लिए",
-    "language.english": "अंग्रेज़ी",
-    "language.hindi": "हिंदी",
-    "modal.defaultTitle": "—",
-    "aria.toggleTheme": "थीम बदलें",
-    "aria.viewSourceGithub": "GitHub पर सोर्स देखें",
-    "aria.filterGames": "गेम फिल्टर करें",
-    "aria.categories": "श्रेणियां",
-    "aria.toggleFullscreen": "फुलस्क्रीन बदलें",
-    "aria.restartGame": "गेम रीस्टार्ट करें",
-    "aria.openInNewTab": "नए टैब में खोलें",
-    "aria.close": "बंद करें",
-    "title.fullscreen": "फुलस्क्रीन",
-    "title.restart": "रीस्टार्ट",
-    "title.openInNewTab": "नए टैब में खोलें",
-    "title.close": "बंद करें",
-    "title.game": "गेम",
-    "errors.registryLoad": "<code>games/registry.json</code> लोड नहीं हो सका। क्या आप HTTP सर्वर चला रहे हैं? <code>python -m http.server</code> आज़माएं।",
-    "stats.games": "गेम्स",
-    "filters.all": "सभी",
-    "card.tech.phaser": "Phaser",
-    "card.tech.three": "Three.js",
-    "card.tech.html": "HTML5",
-    "card.aria.play": "{name} खेलें",
-  },
-};
-
-// per-category emoji used as the visual on cards
-const CATEGORY_EMOJI_FALLBACK = {
-  puzzle: "🧩",
-  arcade: "🕹️",
-  shooter: "🎯",
-  racing: "🏎️",
-  sports: "⚽",
-  platformer: "🏃",
-  casual: "🎈",
-  board: "♟️",
-  "word-quiz": "📝",
-  "3d": "🌐",
-};
-
-// per-category gradient pair for the card art
-const CATEGORY_GRAD = {
-  puzzle:     ["#7c3aed", "#4c1d95"],
-  arcade:     ["#ec4899", "#831843"],
-  shooter:    ["#ef4444", "#7f1d1d"],
-  racing:     ["#f59e0b", "#7c2d12"],
-  sports:     ["#10b981", "#064e3b"],
-  platformer: ["#06b6d4", "#0c4a6e"],
-  casual:     ["#f472b6", "#831843"],
-  board:      ["#64748b", "#1e293b"],
-  "word-quiz":["#3b82f6", "#1e3a8a"],
-  "3d":       ["#8b5cf6", "#4c1d95"],
-};
-
-// per-game emoji overrides (fall back to category emoji)
-const GAME_EMOJI = {
-  "2048": "🔢", "tetris": "🟦", "snake": "🐍", "curve-snake": "🐍",
-  "snake-and-ladder": "🎲", "chess": "♟️", "ludo": "🎲", "tic-tac-toe": "⭕",
-  "rock-paper-scissors": "✊", "carrom": "🪙", "sudoku": "🔢",
-  "memory": "🧠", "memory-cards": "🧠", "pacman": "👻", "flappy": "🐤",
-  "mario": "🍄", "doodle-jump": "⬆️", "bubble-shooter": "🫧", "bubble-pop": "🫧",
-  "candy-crush": "🍬", "candy-crusher": "🍬", "fruit-merge": "🍇",
-  "fruit-basket": "🧺", "fruit-cosmics": "🍓", "cooking": "👨‍🍳",
-  "buttermilk": "🥛", "wordle": "🅰️", "words-of-wonder": "🔠",
-  "math-quest": "➕", "quiz": "❓", "football": "⚽", "basketball": "🏀",
-  "bowling": "🎳", "cricket-123": "🏏", "table-tennis": "🏓",
-  "archer": "🏹", "penalty": "🥅",
-  "bird-shooter": "🐦", "alien-battle": "👾", "fighter-jet": "✈️",
-  "fighter-fury": "✈️", "sniper": "🔭", "shooter": "🔫", "shoot-enemy": "🎯",
-  "cannon-blaster": "💥", "robot-destruction": "🤖", "vaccine-shooter": "💉",
-  "tower-shooter": "🗼", "tee-shooter": "🏌️", "thunder-god": "⚡",
-  "shadow-shooter": "🌑", "space-fighter": "🚀", "trench-defence": "🪖",
-  "gunman": "🤠", "gun-run": "🔫", "projectile-enemy": "🎯",
-  "survivor": "🧟",
-  "car-race": "🏎️", "road-fighter": "🚗", "one-car": "🚙", "two-cars": "🚗",
-  "two-cars-ai": "🤖", "endless-runner": "🏃", "forest-runner": "🌲",
-  "shadow-runner": "🌑", "survival-run": "🏃", "straight-rush": "💨",
-  "antigravity": "🌀", "cool-platformer": "🦘", "flip-jump": "🔄",
-  "parkour": "🤸", "devil-king": "😈", "level-devil": "😈",
-  "that-level-again-1": "🔁", "that-level-again-2": "🔁",
-  "that-level-again-3": "🔁", "that-level-again-4": "🔁",
-  "that-level-again-5": "🔁",
-  "stack-tower": "🏗️", "cosmic-cleaner": "🧹", "orbital-outpost": "🛰️",
-  "planet-visitor": "🪐", "planet-war": "🪐",
-  "hex-puzzle": "⬡", "cut-rope": "✂️", "connected": "🔗", "link": "🔗",
-  "laser-bounce": "💡", "circuit-bulb": "💡", "signal-circuit": "📡",
-  "colour-pour": "🧪", "screw-master": "🔩", "shape-fitter": "🧩",
-  "shape-collector": "🔷", "perfect-square": "⬜", "tile-tap": "🎹",
-  "slide-puzzle": "🧩", "pathfinder": "🧭", "number-merge": "🔢",
-  "four-dots": "🔵", "cargo-stack": "📦", "pairing": "🃏",
-  "line-trap": "✏️", "unruly": "⚪", "6oct": "🔶", "square-one": "🔲",
-  "circle-path": "⭕", "color-dash": "🎨", "balance-stack": "📚",
-  "bomb-blast": "💣", "boom-dots": "💥", "bug-smasher": "🐛",
-  "whack-a-bug": "🐞", "tap-target": "🎯", "kaiju-krush": "🦖",
-  "crowd-control": "👥", "crossy-road": "🛣️", "road-cross": "🛣️",
-  "red-light-green-light": "🚦", "glass-step": "🪟", "swipe-assassin": "🗡️",
-  "fly-monkey": "🐒", "hungry-player": "😋", "jump-dot": "⬆️",
-  "demon": "👹", "abhita": "✨", "ellars": "✨", "dream-weaver": "💭",
-  "endless-mafia": "🕴️", "dodge-enemy": "💨", "dodge-master": "💨",
-  "catch-me-if-you-can": "🏃", "collector": "💎", "pirates": "🏴‍☠️",
-  "spaceman": "👨‍🚀", "space-waves": "🌊", "sky-high": "🪂",
-  "luma-bounce": "🟡", "stick-game": "🪵", "stick-toss": "🪵",
-  "breakoid": "🧱", "window-shooter": "🪟", "tile": "🎹",
-};
-
-const els = {
-  grid: document.getElementById("grid"),
-  empty: document.getElementById("empty"),
-  search: document.getElementById("search-input"),
-  filters: document.getElementById("filters"),
-  stats: document.getElementById("stats"),
-  themeToggle: document.getElementById("theme-toggle"),
-  themeIcon: document.querySelector(".theme-icon"),
-  starCount: document.getElementById("star-count"),
-  randomBtn: document.getElementById("random-game"),
-  clearFilters: document.getElementById("clear-filters"),
-  modal: document.getElementById("modal"),
-  modalTitle: document.getElementById("modal-title"),
-  modalChip: document.getElementById("modal-chip"),
-  modalFrame: document.getElementById("modal-frame"),
-  modalOpen: document.getElementById("modal-open"),
-  modalReload: document.getElementById("modal-reload"),
-  modalFs: document.getElementById("modal-fullscreen"),
-  languageSelect: document.getElementById("language-select"),
-};
-
-const state = {
-  games: [],
-  categories: [],
-  q: "",
-  category: "all",
-  locale: DEFAULT_LOCALE,
-};
-
-// ---------- Init ----------
-init();
-
-async function init() {
-  state.locale = loadLanguage();
-  document.documentElement.lang = state.locale;
-  loadTheme();
-  applyI18n();
-  if (els.languageSelect) els.languageSelect.value = state.locale;
-  attachUiEvents();
-
-  try {
-    const res = await fetch("games/registry.json", { cache: "no-store" });
-    if (!res.ok) throw new Error(`registry fetch ${res.status}`);
-    const data = await res.json();
-    state.games = data.games || [];
-    state.categories = data.categories || [];
-  } catch (err) {
-    console.error("Failed to load registry:", err);
-    els.grid.innerHTML = `<p style="grid-column:1/-1;color:var(--text-dim);text-align:center;padding:40px">
-      ${t("errors.registryLoad")}</p>`;
-    return;
-  }
-
-  renderStats();
-  renderFilters();
-  renderGrid();
-  hydrateFromHash();
-  fetchStarCount();
-}
-
-// ---------- Theme ----------
-function loadTheme() {
-  const saved = localStorage.getItem("theme");
-  const initial = saved || "light";
-  setTheme(initial);
-}
-function setTheme(t) {
-  document.documentElement.dataset.theme = t;
-  els.themeIcon.textContent = t === "light" ? "☀️" : "🌙";
-  localStorage.setItem("theme", t);
-}
-
-// ---------- UI events ----------
-function attachUiEvents() {
-  if (els.languageSelect) {
-    els.languageSelect.addEventListener("change", (e) => {
-      setLanguage(e.target.value);
-      window.location.reload();
+  async function init() {
+    const savedTheme = readStore(STORE.theme, 'dark'); setTheme(savedTheme);
+    els.theme.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+    $('random-game').addEventListener('click', playRandom);
+    els.search.addEventListener('input', () => { state.query = els.search.value.trim().toLowerCase(); render(); });
+    els.sort.addEventListener('change', () => { state.sort = els.sort.value; if (state.sort === 'shuffle') state.shuffled = shuffle(state.games.map(g => g.slug)); render(); });
+    $('quick-filters').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (!b) return; state.view = b.dataset.view; document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('active', x === b)); render(); });
+    $('clear-filters').addEventListener('click', clearFilters);
+    els.grid.addEventListener('click', e => {
+      const fav = e.target.closest('[data-favorite]');
+      if (fav) { e.stopPropagation(); toggleFavorite(fav.dataset.favorite); return; }
+      const card = e.target.closest('[data-game]'); if (card) openGame(card.dataset.game);
     });
-  }
-  els.themeToggle.addEventListener("click", () => {
-    setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
-  });
-  els.search.addEventListener("input", (e) => {
-    state.q = e.target.value.trim().toLowerCase();
-    renderGrid();
-  });
-  els.randomBtn.addEventListener("click", playRandom);
-  if (els.clearFilters) {
-    els.clearFilters.addEventListener("click", () => {
-      state.q = "";
-      state.category = "all";
-      els.search.value = "";
-      renderFilters();
-      renderGrid();
+    els.modal.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeGame));
+    $('modal-reload').addEventListener('click', () => { if (state.current) { const path = state.current.path; els.frame.src = 'about:blank'; requestAnimationFrame(() => { els.frame.src = path; }); } });
+    $('modal-open').addEventListener('click', () => { if (state.current) window.open(state.current.path, '_blank', 'noopener'); });
+    $('modal-fullscreen').addEventListener('click', () => { const panel = document.querySelector('.modal-panel'); if (!document.fullscreenElement) panel.requestFullscreen?.(); else document.exitFullscreen?.(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !els.modal.hidden) { closeGame(); return; }
+      if (e.target.matches('input,textarea,select')) return;
+      if (e.key === '/') { e.preventDefault(); els.search.focus(); }
+      if (e.key.toLowerCase() === 'r' && els.modal.hidden) playRandom();
     });
-  }
-
-  // Modal close buttons
-  els.modal.querySelectorAll("[data-close]").forEach((el) =>
-    el.addEventListener("click", closeModal)
-  );
-  els.modalReload.addEventListener("click", () => {
-    const src = els.modalFrame.getAttribute("src");
-    els.modalFrame.setAttribute("src", "about:blank");
-    requestAnimationFrame(() => els.modalFrame.setAttribute("src", src));
-  });
-  els.modalFs.addEventListener("click", () => {
-    const target = els.modal.querySelector(".modal__panel");
-    if (!document.fullscreenElement) target.requestFullscreen?.();
-    else document.exitFullscreen?.();
-  });
-
-  // Keyboard
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !els.modal.hidden) {
-      closeModal();
-      return;
+    window.addEventListener('hashchange', () => { const m = location.hash.match(/^#play=([\w-]+)/); if (m) openGame(m[1], false); else if (!els.modal.hidden) closeGame(false); });
+    try {
+      const response = await fetch('games/registry.json');
+      if (!response.ok) throw new Error(`Registry request failed (${response.status})`);
+      const data = await response.json();
+      state.games = Array.isArray(data.games) ? data.games : [];
+      state.categories = Array.isArray(data.categories) ? data.categories : [];
+      if (!state.games.length) throw new Error('No games were listed in the registry.');
+      state.shuffled = shuffle(state.games.map(g => g.slug));
+      renderStats(); renderCategories(); render();
+      const deepLink = location.hash.match(/^#play=([\w-]+)/); if (deepLink) openGame(deepLink[1], false);
+    } catch (err) {
+      console.error(err);
+      els.grid.innerHTML = `<div class="load-error"><h3>Couldn't load the game library</h3><p>${safe(err.message)}</p><p>Make sure <code>games/registry.json</code> exists and the site is being served from the repository root.</p></div>`;
+      els.resultCount.textContent = 'Library unavailable';
     }
-    if (e.target.matches("input, textarea")) return;
-    if (e.key === "/") { e.preventDefault(); els.search.focus(); }
-    else if (e.key.toLowerCase() === "r" && els.modal.hidden) playRandom();
-  });
-
-  // Hash changes
-  window.addEventListener("hashchange", hydrateFromHash);
-}
-
-// ---------- Stats ----------
-function renderStats() {
-  const counts = {};
-  for (const g of state.games) counts[g.category] = (counts[g.category] || 0) + 1;
-  const top = state.categories
-    .map((c) => ({ c, n: counts[c.id] || 0 }))
-    .sort((a, b) => b.n - a.n)
-    .slice(0, 4);
-  els.stats.innerHTML = `
-    <span class="stat"><span class="stat__num">${state.games.length}</span> ${t("stats.games")}</span>
-    ${top.map(({ c, n }) => `<span class="stat"><span class="stat__num">${n}</span> ${c.emoji} ${c.label}</span>`).join("")}
-  `;
-}
-
-// ---------- Filters ----------
-function renderFilters() {
-  const counts = {};
-  for (const g of state.games) counts[g.category] = (counts[g.category] || 0) + 1;
-  const all = `<button class="chip" type="button" data-cat="all" aria-pressed="${state.category === "all"}">
-    ${t("filters.all")} <span class="chip__count">${state.games.length}</span>
-  </button>`;
-  const cats = state.categories
-    .map((c) => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="${state.category === c.id}">
-      <span aria-hidden="true">${c.emoji}</span> ${c.label}
-      <span class="chip__count">${counts[c.id] || 0}</span>
-    </button>`)
-    .join("");
-  els.filters.innerHTML = all + cats;
-  els.filters.querySelectorAll(".chip").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      state.category = btn.dataset.cat;
-      renderFilters();
-      renderGrid();
-    })
-  );
-}
-
-// ---------- Grid ----------
-function renderGrid() {
-  const filtered = state.games.filter((g) => {
-    if (state.category !== "all" && g.category !== state.category) return false;
-    if (!state.q) return true;
-    const hay = `${g.name} ${g.category} ${(g.tags || []).join(" ")} ${g.description}`.toLowerCase();
-    return hay.includes(state.q);
-  });
-
-  if (!filtered.length) {
-    els.grid.innerHTML = "";
-    els.empty.hidden = false;
-    return;
   }
-  els.empty.hidden = true;
-
-  els.grid.innerHTML = filtered.map(renderCard).join("");
-  els.grid.querySelectorAll(".card").forEach((card) =>
-    card.addEventListener("click", () => openGame(card.dataset.slug))
-  );
-}
-
-function renderCard(g) {
-  const emoji = GAME_EMOJI[g.slug] || CATEGORY_EMOJI_FALLBACK[g.category] || "🎮";
-  const grad = CATEGORY_GRAD[g.category] || ["#444", "#222"];
-  const cat = state.categories.find((c) => c.id === g.category);
-  const techLabel = g.tech === "phaser" ? t("card.tech.phaser") : g.tech === "three" ? t("card.tech.three") : t("card.tech.html");
-  return `
-    <button class="card" data-slug="${g.slug}" data-category="${g.category}"
-      style="--card-c1:${grad[0]};--card-c2:${grad[1]}" aria-label="${escapeAttr(t("card.aria.play", { name: g.name }))}">
-      <div class="card__art">
-        <span class="card__emoji" aria-hidden="true">${emoji}</span>
-        <span class="card__play" aria-hidden="true">▶</span>
-      </div>
-      <div class="card__body">
-        <h3 class="card__title">${escapeHtml(g.name)}</h3>
-        <p class="card__desc">${escapeHtml(g.description || "")}</p>
-        <div class="card__meta">
-          <span class="card__chip">${cat?.emoji || ""} ${cat?.label || g.category}</span>
-          <span class="card__tech">${techLabel}</span>
-        </div>
-      </div>
-    </button>
-  `;
-}
-
-// ---------- Modal player ----------
-function openGame(slug) {
-  const g = state.games.find((x) => x.slug === slug);
-  if (!g) return;
-  const cat = state.categories.find((c) => c.id === g.category);
-  els.modalTitle.textContent = g.name;
-  els.modalChip.textContent = `${cat?.emoji || ""} ${cat?.label || g.category}`;
-  els.modalChip.style.background = CATEGORY_GRAD[g.category]?.[0] || "var(--accent)";
-  els.modalFrame.setAttribute("src", g.path);
-  els.modalOpen.setAttribute("href", g.path);
-  els.modal.hidden = false;
-  document.body.style.overflow = "hidden";
-  if (location.hash !== `#play=${slug}`) {
-    history.replaceState(null, "", `#play=${slug}`);
+  function setTheme(theme) { const value = theme === 'light' ? 'light' : 'dark'; document.documentElement.dataset.theme = value; els.theme.textContent = value === 'dark' ? '☀' : '☾'; writeStore(STORE.theme, value); }
+  function shuffle(items) { const a = [...items]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function renderStats() {
+    const cats = state.categories.map(c => ({...c, count: state.games.filter(g => g.category === c.id).length})).sort((a,b) => b.count-a.count).slice(0,3);
+    els.stats.innerHTML = `<div class="stat"><strong>${state.games.length}</strong><span>games in the library</span></div><div class="stat"><strong>${state.categories.length}</strong><span>categories</span></div><div class="stat"><strong>${state.favorites.length}</strong><span>your favorites</span></div>${cats.map(c=>`<div class="stat stat-small"><strong>${c.count}</strong><span>${safe(c.emoji || emoji[c.id] || '🎮')} ${safe(c.label)}</span></div>`).join('')}`;
   }
-}
-
-function closeModal() {
-  els.modal.hidden = true;
-  els.modalFrame.setAttribute("src", "about:blank");
-  document.body.style.overflow = "";
-  if (location.hash.startsWith("#play=")) {
-    history.replaceState(null, "", location.pathname + location.search);
+  function renderCategories() {
+    els.categories.innerHTML = `<button class="category-btn active" data-category="all" type="button">All categories</button>` + state.categories.map(c => `<button class="category-btn" data-category="${safe(c.id)}" type="button">${safe(c.emoji || emoji[c.id] || '🎮')} ${safe(c.label)} <span>${state.games.filter(g=>g.category===c.id).length}</span></button>`).join('');
+    els.categories.addEventListener('click', e => { const b = e.target.closest('[data-category]'); if (!b) return; state.category = b.dataset.category; els.categories.querySelectorAll('.category-btn').forEach(x => x.classList.toggle('active', x === b)); render(); });
   }
-  if (document.fullscreenElement) document.exitFullscreen?.();
-}
-
-function hydrateFromHash() {
-  const m = location.hash.match(/^#play=([\w-]+)/);
-  if (m) openGame(m[1]);
-  else if (!els.modal.hidden) closeModal();
-}
-
-function playRandom() {
-  if (!state.games.length) return;
-  const pool = state.category === "all"
-    ? state.games
-    : state.games.filter((g) => g.category === state.category);
-  const pick = pool[Math.floor(Math.random() * pool.length)];
-  openGame(pick.slug);
-}
-
-// ---------- Star count (cached 1h) ----------
-async function fetchStarCount() {
-  const cached = readCache("gh_stars", 60 * 60 * 1000);
-  if (cached != null) return showStars(cached);
-  try {
-    const res = await fetch(`https://api.github.com/repos/${GH_REPO}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (typeof data.stargazers_count === "number") {
-      writeCache("gh_stars", data.stargazers_count);
-      showStars(data.stargazers_count);
-    }
-  } catch {}
-}
-function showStars(n) {
-  els.starCount.hidden = false;
-  els.starCount.querySelector("em").textContent = formatNum(n);
-}
-function readCache(key, maxAgeMs) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const { v, t } = JSON.parse(raw);
-    if (Date.now() - t > maxAgeMs) return null;
-    return v;
-  } catch { return null; }
-}
-function writeCache(key, v) {
-  try { localStorage.setItem(key, JSON.stringify({ v, t: Date.now() })); } catch {}
-}
-function formatNum(n) {
-  return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
-}
-
-// ---------- Helpers ----------
-function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-}
-function escapeAttr(s) { return escapeHtml(s); }
-
-function loadLanguage() {
-  const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
-  if (saved && I18N[saved]) return saved;
-  return DEFAULT_LOCALE;
-}
-
-function setLanguage(locale) {
-  state.locale = I18N[locale] ? locale : DEFAULT_LOCALE;
-  localStorage.setItem(LOCALE_STORAGE_KEY, state.locale);
-  document.documentElement.lang = state.locale;
-}
-
-function t(key, vars = {}) {
-  const dict = I18N[state.locale] || I18N[DEFAULT_LOCALE];
-  let text = dict[key] ?? key;
-  for (const [name, value] of Object.entries(vars)) {
-    text = text.replaceAll(`{${name}}`, String(value));
+  function getFiltered() {
+    let games = state.games.filter(g => {
+      if (state.category !== 'all' && g.category !== state.category) return false;
+      if (state.view === 'favorites' && !state.favorites.includes(g.slug)) return false;
+      if (state.view === 'recent' && !state.recent.includes(g.slug)) return false;
+      if (state.query) { const hay = `${g.name} ${g.category} ${(g.tags||[]).join(' ')} ${g.description||''} ${g.tech||''}`.toLowerCase(); if (!hay.includes(state.query)) return false; }
+      return true;
+    });
+    if (state.sort === 'az') games.sort((a,b)=>a.name.localeCompare(b.name));
+    if (state.sort === 'za') games.sort((a,b)=>b.name.localeCompare(a.name));
+    if (state.sort === 'shuffle') { const rank = new Map(state.shuffled.map((s,i)=>[s,i])); games.sort((a,b)=>(rank.get(a.slug)??99999)-(rank.get(b.slug)??99999)); }
+    if (state.view === 'recent') { const rank = new Map(state.recent.map((s,i)=>[s,i])); games.sort((a,b)=>(rank.get(a.slug)??99999)-(rank.get(b.slug)??99999)); }
+    return games;
   }
-  return text;
-}
-
-function applyI18n(root = document) {
-  root.querySelectorAll("[data-i18n]").forEach((el) => {
-    el.textContent = t(el.dataset.i18n);
-  });
-  root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
-    el.setAttribute("placeholder", t(el.dataset.i18nPlaceholder));
-  });
-  root.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
-    el.setAttribute("aria-label", t(el.dataset.i18nAriaLabel));
-  });
-  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
-    el.setAttribute("title", t(el.dataset.i18nTitle));
-  });
-}
+  function render() {
+    const games = getFiltered();
+    els.resultCount.textContent = `${games.length} of ${state.games.length} games`;
+    $('stats').querySelectorAll('.stat')[2]?.querySelector('strong') && ($('stats').querySelectorAll('.stat')[2].querySelector('strong').textContent = state.favorites.length);
+    els.empty.hidden = games.length > 0;
+    els.grid.hidden = games.length === 0;
+    els.grid.innerHTML = games.map(g => {
+      const favorite = state.favorites.includes(g.slug);
+      const cat = state.categories.find(c => c.id === g.category);
+      return `<button class="game-card" type="button" data-game="${safe(g.slug)}" aria-label="Play ${safe(g.name)}"><span class="card-art cat-${safe(g.category)}"><span class="card-emoji">${safe(emoji[g.category] || '🎮')}</span><span class="card-play">▶ PLAY</span><span class="card-category">${safe(cat?.label || g.category)}</span></span><span class="card-content"><span class="card-title-row"><strong>${safe(g.name)}</strong><span class="favorite-star ${favorite?'is-favorite':''}" data-favorite="${safe(g.slug)}" role="button" tabindex="0" aria-label="${favorite?'Remove from':'Add to'} favorites" title="${favorite?'Remove from':'Add to'} favorites">${favorite?'♥':'♡'}</span></span><span class="card-description">${safe(g.description || 'Jump in and play.')}</span><span class="card-tags"><span>${safe(g.tech === 'three' ? 'THREE.JS' : g.tech === 'phaser' ? 'PHASER' : 'HTML5')}</span>${(g.tags||[]).slice(0,2).map(t=>`<span>${safe(t)}</span>`).join('')}</span></span></button>`;
+    }).join('');
+  }
+  function toggleFavorite(slug) { state.favorites = state.favorites.includes(slug) ? state.favorites.filter(s=>s!==slug) : [slug,...state.favorites]; writeStore(STORE.favorites,state.favorites); renderStats(); render(); }
+  function openGame(slug, updateHash = true) {
+    const game = state.games.find(g=>g.slug===slug); if (!game) return;
+    state.current = game;
+    state.recent = [slug,...state.recent.filter(s=>s!==slug)].slice(0,12); writeStore(STORE.recent,state.recent); renderStats();
+    const cat = state.categories.find(c=>c.id===game.category);
+    els.modalTitle.textContent = game.name; els.modalCategory.textContent = `${cat?.emoji || emoji[game.category] || '🎮'} ${cat?.label || game.category}`;
+    els.modalDescription.textContent = game.description || 'Have fun!';
+    els.frame.src = game.path; els.modalOpen.href = game.path; els.modal.hidden = false; document.body.classList.add('modal-open');
+    if (updateHash && location.hash !== `#play=${slug}`) history.replaceState(null,'',`#play=${slug}`);
+  }
+  function closeGame(updateHash = true) { els.modal.hidden = true; els.frame.src = 'about:blank'; document.body.classList.remove('modal-open'); if (document.fullscreenElement) document.exitFullscreen?.(); if (updateHash && location.hash.startsWith('#play=')) history.replaceState(null,'',location.pathname+location.search); state.current = null; }
+  function playRandom() { const pool = getFiltered(); const source = pool.length ? pool : state.games; if (source.length) openGame(source[Math.floor(Math.random()*source.length)].slug); }
+  function clearFilters() { state.query=''; state.category='all'; state.view='all'; state.sort='default'; els.search.value=''; els.sort.value='default'; document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view==='all')); els.categories.querySelectorAll('[data-category]').forEach(b=>b.classList.toggle('active',b.dataset.category==='all')); render(); }
+  init();
+})();
